@@ -182,3 +182,32 @@ progressr::with_progress({
 
 # parse processos ---------------------------------------------------------
 
+parse_processo <- function(json) {
+  json |>
+    jsonlite::read_json(simplifyDataFrame = TRUE) |>
+    unlist() |>
+    tibble::enframe() |>
+    tidyr::pivot_wider() |>
+    dplyr::mutate(file = json)
+}
+
+processos <- "~/Downloads/bnmp_processos" |>
+  fs::dir_ls() |>
+  purrr::discard(~fs::file_size(.x) < 100)
+parsed_processos <- purrr::map_dfr(processos, parse_processo)
+
+dplyr::glimpse(parsed_processos)
+names(parsed_processos)
+
+parsed_processos |>
+  dplyr::select(
+    -dplyr::matches("pessoa\\.(sinais|telefone|endereco)"),
+    -dplyr::starts_with("outrasPecas")
+  ) |>
+  dplyr::glimpse()
+
+parsed_processos |>
+  dplyr::select(-dplyr::contains("pessoa")) |>
+  names()
+
+
