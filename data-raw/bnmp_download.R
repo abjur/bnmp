@@ -188,6 +188,10 @@ parse_processo <- function(json) {
     unlist() |>
     tibble::enframe() |>
     tidyr::pivot_wider() |>
+    dplyr::select(
+      -dplyr::matches("pessoa\\.(sinais|telefone|endereco)"),
+      -dplyr::starts_with("outrasPecas")
+    ) |>
     dplyr::mutate(file = json)
 }
 
@@ -195,19 +199,37 @@ processos <- "~/Downloads/bnmp_processos" |>
   fs::dir_ls() |>
   purrr::discard(~fs::file_size(.x) < 100)
 parsed_processos <- purrr::map_dfr(processos, parse_processo)
+bnmp_dados <- dplyr::transmute(
+    parsed_processos,
+    id, dataCriacao, dataExpedicao, status.id, status.descricao,
+    numero = stringr::str_sub(numeroPeca, 1, 20)
+  )
 
-dplyr::glimpse(parsed_processos)
-names(parsed_processos)
+# sirene
+
+sirene <- readxl::read_excel(
+  "~/Downloads/result/processos/df_processos_meio_ambiente.xlsx"
+)
+
+sirene_shp <- sf::read_sf("~/Downloads/result 2/meioambiente-shape.shp")
+
+base <- dplyr::mutate(sirene_shp, numero = abjutils::clean_cnj(NUMPROCESS))
+base_join <- dplyr::inner_join(base, bnmp_dados, "numero")
+dplyr::glimpse(base)
 
 parsed_processos |>
-  dplyr::select(
-    -dplyr::matches("pessoa\\.(sinais|telefone|endereco)"),
-    -dplyr::starts_with("outrasPecas")
-  ) |>
   dplyr::glimpse()
 
 parsed_processos |>
-  dplyr::select(-dplyr::contains("pessoa")) |>
-  names()
+  dplyr::select(id, numeroProcesso, dplyr::contains("tipi")) |>
+  dplyr::filter(dplyr::if_any(.fns = ~stringr::str_detect(.x, "^9605"))) |>
+  dplyr::select(numeroProcesso)
+  dplyr::glimpse()
 
-
+parsed_processos |>
+  dplyr::filter(numeroProcesso == "00006861020138010009") |>
+  dplyr::select(where(~!is.na(.x))) |>
+  purrr::transpose() |>
+  unlist() |>
+  purrr::keep(~stringr::str_detect(.x, "9605"))
+  dplyr::glimpse()
